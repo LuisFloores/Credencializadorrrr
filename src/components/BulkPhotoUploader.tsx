@@ -134,7 +134,7 @@ export default function BulkPhotoUploader({ employees, onPhotosMatched, onLogMes
     <div className="bg-white rounded-2xl border border-gray-100 shadow-xs p-6 mb-6">
       <div className="flex flex-col mb-4">
         <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-          <Images className="w-5 h-5 text-indigo-600" />
+          <Images className="w-5 h-5 text-gray-700" />
           Subida de Fotos en Lote (Opcional)
         </h2>
         <p className="text-xs text-gray-500 mt-1">
@@ -157,8 +157,8 @@ export default function BulkPhotoUploader({ employees, onPhotosMatched, onLogMes
           employees.length === 0
             ? 'border-gray-100 bg-gray-50/50 cursor-not-allowed opacity-60'
             : isDragging
-            ? 'border-indigo-500 bg-indigo-50/50 scale-[1.01]'
-            : 'border-gray-200 hover:border-indigo-400 hover:bg-gray-50/50'
+            ? 'border-gray-500 bg-gray-100 scale-[1.01]'
+            : 'border-gray-200 hover:border-gray-400 hover:bg-gray-50/50'
         }`}
       >
         <input
@@ -172,7 +172,7 @@ export default function BulkPhotoUploader({ employees, onPhotosMatched, onLogMes
         />
         
         <div className={`inline-flex items-center justify-center w-10 h-10 rounded-full mb-2 ${
-          employees.length === 0 ? 'bg-gray-100 text-gray-400' : 'bg-indigo-50 text-indigo-600'
+          employees.length === 0 ? 'bg-gray-100 text-gray-400' : 'bg-gray-100 text-gray-700'
         }`}>
           <Images className="w-5 h-5" />
         </div>
@@ -180,15 +180,15 @@ export default function BulkPhotoUploader({ employees, onPhotosMatched, onLogMes
           {employees.length === 0 ? 'Bloqueado hasta cargar empleados' : 'Suelta todas las imágenes de los empleados aquí'}
         </p>
         <p className="text-xs text-gray-400">
-          Usa nombres de archivo descriptivos como: <span className="font-mono text-[11px] bg-gray-100 px-1 py-0.5 rounded text-gray-600">juan_perez.jpg</span>
+          Usa nombres de archivo descriptivos como: <span className="font-mono text-[11px] bg-gray-100 px-1 py-0.5 rounded text-gray-650">juan_perez.jpg</span>
         </p>
       </div>
 
       {results && (
         <div className="mt-4 p-4 rounded-xl border border-gray-100 bg-gray-50 text-xs">
-          <div className="flex items-center justify-between font-medium text-gray-700 pb-2 mb-2 border-b border-gray-200">
+          <div className="flex items-center justify-between font-medium text-gray-705 pb-2 mb-2 border-b border-gray-200">
             <span>Resultados de Emparejamiento</span>
-            <span className="bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full font-bold">
+            <span className="bg-gray-200 text-gray-800 px-2 py-0.5 rounded-full font-bold">
               {results.matched} / {results.matched + results.unmatched} Asignadas
             </span>
           </div>

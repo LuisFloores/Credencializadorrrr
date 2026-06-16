@@ -29,7 +29,7 @@ export default function BadgeCustomizer({ config, onChange }: BadgeCustomizerPro
   return (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-xs p-6 mb-6">
       <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2 mb-4">
-        <Palette className="w-5 h-5 text-indigo-600" />
+        <Palette className="w-5 h-5 text-gray-700" />
         2. Personalizar Diseño de Credenciales
       </h2>
 

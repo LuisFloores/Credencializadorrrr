@@ -24,6 +24,21 @@ import PrintSheet from './components/PrintSheet';
 let jsPDFClass: any = null;
 let html2canvasClass: any = null;
 
+// Helper to map color lightness to actual slate RGBA values for neutrals
+const mapLightnessToSlate = (LVal: number, alpha: string): string => {
+  if (LVal > 0.97) return `rgba(248, 250, 252, ${alpha})`; // slate-50
+  if (LVal > 0.94) return `rgba(241, 245, 249, ${alpha})`; // slate-100
+  if (LVal > 0.89) return `rgba(226, 232, 240, ${alpha})`; // slate-200
+  if (LVal > 0.78) return `rgba(203, 213, 225, ${alpha})`; // slate-300
+  if (LVal > 0.62) return `rgba(148, 163, 184, ${alpha})`; // slate-400
+  if (LVal > 0.49) return `rgba(100, 116, 139, ${alpha})`; // slate-500
+  if (LVal > 0.40) return `rgba(71, 85, 105, ${alpha})`;   // slate-600
+  if (LVal > 0.31) return `rgba(51, 65, 85, ${alpha})`;    // slate-700
+  if (LVal > 0.20) return `rgba(30, 41, 59, ${alpha})`;    // slate-800
+  if (LVal > 0.10) return `rgba(15, 23, 42, ${alpha})`;    // slate-900
+  return `rgba(2, 6, 23, ${alpha})`;                       // slate-950
+};
+
 // Helper to clean up oklch, oklab, and rgb(from ...) colors for html2canvas compatibility
 const cleanRelativeColors = (cssText: string): string => {
   if (!cssText) return cssText;
@@ -78,22 +93,22 @@ const cleanRelativeColors = (cssText: string): string => {
       
       if (parts.length >= 3) {
         const lStr = parts[0];
+        const cStr = parts[1];
         const hStr = parts[2];
         const aStr = parts[3];
         
         const LVal = lStr.endsWith('%') ? parseFloat(lStr) / 100 : parseFloat(lStr);
+        const CVal = parseFloat(cStr);
         let alpha = '1';
         if (aStr) {
           alpha = aStr.endsWith('%') ? (parseFloat(aStr) / 100).toString() : aStr;
         }
         
-        if (LVal > 0.93) {
-          output += `rgba(248, 250, 252, ${alpha})`;
-        } else if (LVal > 0.85) {
-          output += `rgba(241, 245, 249, ${alpha})`;
-        } else if (LVal < 0.20) {
-          output += `rgba(15, 23, 42, ${alpha})`;
+        if (!isNaN(CVal) && CVal < 0.08) {
+          // If chroma is low, it's a gray/slate shade
+          output += mapLightnessToSlate(LVal, alpha);
         } else {
+          // Chromatic color
           const HVal = parseFloat(hStr);
           if (!isNaN(HVal)) {
             if (HVal >= 240 && HVal <= 290) {
@@ -101,10 +116,10 @@ const cleanRelativeColors = (cssText: string): string => {
             } else if (HVal >= 0 && HVal <= 40) {
               output += `rgba(224, 30, 90, ${alpha})`;
             } else {
-              output += `rgba(71, 85, 105, ${alpha})`;
+              output += mapLightnessToSlate(LVal, alpha);
             }
           } else {
-            output += `rgba(71, 85, 105, ${alpha})`;
+            output += mapLightnessToSlate(LVal, alpha);
           }
         }
       } else {
@@ -137,26 +152,22 @@ const cleanRelativeColors = (cssText: string): string => {
           alpha = aStr.endsWith('%') ? (parseFloat(aStr) / 100).toString() : aStr;
         }
         
-        if (LVal > 0.93) {
-          output += `rgba(248, 250, 252, ${alpha})`;
-        } else if (LVal > 0.85) {
-          output += `rgba(241, 245, 249, ${alpha})`;
-        } else if (LVal < 0.20) {
-          output += `rgba(15, 23, 42, ${alpha})`;
-        } else {
-          const aVal = parseFloat(aStrVal);
-          const bVal = parseFloat(bStrVal);
-          if (!isNaN(aVal) && !isNaN(bVal)) {
-            if (aVal > 0.05) {
-              output += `rgba(224, 30, 90, ${alpha})`;
-            } else if (bVal < -0.05) {
-              output += `rgba(79, 70, 229, ${alpha})`;
-            } else {
-              output += `rgba(71, 85, 105, ${alpha})`;
-            }
+        const aVal = parseFloat(aStrVal);
+        const bVal = parseFloat(bStrVal);
+        
+        if (!isNaN(aVal) && !isNaN(bVal) && Math.abs(aVal) < 0.02 && Math.abs(bVal) < 0.02) {
+          // If a and b are both close to 0, it is a neutral/gray color
+          output += mapLightnessToSlate(LVal, alpha);
+        } else if (!isNaN(aVal) && !isNaN(bVal)) {
+          if (aVal > 0.05) {
+            output += `rgba(224, 30, 90, ${alpha})`;
+          } else if (bVal < -0.05) {
+            output += `rgba(79, 70, 229, ${alpha})`;
           } else {
-            output += `rgba(71, 85, 105, ${alpha})`;
+            output += mapLightnessToSlate(LVal, alpha);
           }
+        } else {
+          output += mapLightnessToSlate(LVal, alpha);
         }
       } else {
         output += 'rgba(71, 85, 105, 1)';
@@ -558,13 +569,13 @@ export default function App() {
       <header className="bg-white border-b border-gray-100 sticky top-0 z-40 px-6 py-4 shadow-xs">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-700 text-white flex items-center justify-center shadow-md shadow-indigo-100">
-              <CreditCard className="w-5 h-5 animate-pulse" />
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-gray-700 to-gray-900 text-white flex items-center justify-center shadow-md shadow-gray-200">
+              <CreditCard className="w-5 h-5" />
             </div>
             <div>
               <h1 className="text-xl font-bold text-gray-900 leading-tight flex items-center gap-2">
                 Generador de Credenciales Imprimibles
-                <span className="text-[10px] font-mono bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-full border border-indigo-100">
+                <span className="text-[10px] font-mono bg-gray-100 text-gray-700 px-2 py-0.5 rounded-full border border-gray-200">
                   CR80 (5.4x8.5 cm)
                 </span>
               </h1>
@@ -580,31 +591,14 @@ export default function App() {
                 <button
                   onClick={handlePrint}
                   disabled={isGeneratingPdf}
-                  className="flex items-center gap-1.5 px-4 py-2.5 text-xs font-semibold text-gray-700 bg-white hover:bg-gray-50 active:bg-gray-100 border border-gray-200 rounded-xl shadow-xs cursor-pointer transition-all disabled:opacity-50"
+                  className="flex items-center gap-1.5 px-4 py-2.5 text-xs font-semibold text-gray-700 bg-white hover:bg-gray-50 active:bg-gray-100 border border-gray-300 rounded-xl shadow-xs cursor-pointer transition-all disabled:opacity-50"
                   id="btn-print"
                 >
-                  <Printer className="w-4 h-4 text-gray-500" />
+                  <Printer className="w-4 h-4 text-gray-600" />
                   Imprimir por Navegador
                 </button>
                 
-                <button
-                  onClick={handleGeneratePDF}
-                  disabled={isGeneratingPdf}
-                  className="flex items-center gap-1.5 px-4.5 py-2.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 rounded-xl shadow-sm cursor-pointer transition-all duration-150 disabled:bg-indigo-400"
-                  id="btn-pdf"
-                >
-                  {isGeneratingPdf ? (
-                    <>
-                      <RefreshCw className="w-4 h-4 animate-spin" />
-                      Procesando PDF...
-                    </>
-                  ) : (
-                    <>
-                      <FileDown className="w-4 h-4" />
-                      Generar PDF Imprimible (Pro)
-                    </>
-                  )}
-                </button>
+                {/* El botón de Generar PDF Imprimible ha sido ocultado por solicitud del usuario */}
               </>
             )}
           </div>
@@ -621,10 +615,10 @@ export default function App() {
               ? 'bg-emerald-50 border-emerald-200 text-emerald-800' 
               : notification.type === 'error'
               ? 'bg-rose-50 border-rose-200 text-rose-800'
-              : 'bg-indigo-50 border-indigo-200 text-indigo-800'
+              : 'bg-gray-100 border-gray-200 text-gray-800'
           }`}>
             <Sparkles className={`w-5 h-5 shrink-0 mt-0.5 ${
-              notification.type === 'success' ? 'text-emerald-600' : 'text-indigo-600'
+              notification.type === 'success' ? 'text-emerald-600' : 'text-gray-600'
             }`} />
             <div>
               <p className="text-xs font-semibold leading-relaxed">{notification.message}</p>
@@ -690,7 +684,7 @@ export default function App() {
                 {selectedEmployee ? (
                   <>
                     <div className="pb-2 border-b border-gray-100">
-                      <span className="text-[10px] font-bold text-indigo-600 uppercase tracking-wider block">Colaborador en Edición</span>
+                      <span className="text-[10px] font-bold text-gray-700 uppercase tracking-wider block">Colaborador en Edición</span>
                       <h4 className="text-base font-bold text-gray-900 truncate">{selectedEmployee.nombre}</h4>
                       <p className="text-xs text-gray-500 font-medium">{selectedEmployee.puesto}</p>
                     </div>
@@ -702,7 +696,7 @@ export default function App() {
                           type="text"
                           value={selectedEmployee.empresa}
                           onChange={(e) => updateCellValue(selectedEmployee.id, 'empresa', e.target.value)}
-                          className="w-full text-xs p-2 bg-gray-50 hover:bg-gray-100/70 focus:bg-white border border-gray-200 focus:border-indigo-500 rounded-lg font-medium outline-hidden"
+                          className="w-full text-xs p-2 bg-gray-50 hover:bg-gray-100/70 focus:bg-white border border-gray-200 focus:border-gray-500 rounded-lg font-medium outline-hidden"
                         />
                       </div>
                       <div>
@@ -711,7 +705,7 @@ export default function App() {
                           type="text"
                           value={selectedEmployee.nombre}
                           onChange={(e) => updateCellValue(selectedEmployee.id, 'nombre', e.target.value)}
-                          className="w-full text-xs p-2 bg-gray-50 hover:bg-gray-100/70 focus:bg-white border border-gray-200 focus:border-indigo-500 rounded-lg font-medium outline-hidden"
+                          className="w-full text-xs p-2 bg-gray-50 hover:bg-gray-100/70 focus:bg-white border border-gray-200 focus:border-gray-500 rounded-lg font-medium outline-hidden"
                         />
                       </div>
                       <div>
@@ -720,7 +714,7 @@ export default function App() {
                           type="text"
                           value={selectedEmployee.puesto}
                           onChange={(e) => updateCellValue(selectedEmployee.id, 'puesto', e.target.value)}
-                          className="w-full text-xs p-2 bg-gray-50 hover:bg-gray-100/70 focus:bg-white border border-gray-200 focus:border-indigo-500 rounded-lg font-medium outline-hidden"
+                          className="w-full text-xs p-2 bg-gray-50 hover:bg-gray-100/70 focus:bg-white border border-gray-200 focus:border-gray-500 rounded-lg font-medium outline-hidden"
                         />
                       </div>
                       <div>
@@ -729,7 +723,7 @@ export default function App() {
                           type="text"
                           value={selectedEmployee.tipoSangre}
                           onChange={(e) => updateCellValue(selectedEmployee.id, 'tipoSangre', e.target.value)}
-                          className="w-full text-xs p-2 bg-gray-50 hover:bg-gray-100/70 focus:bg-white border border-gray-200 focus:border-indigo-500 rounded-lg font-medium outline-hidden"
+                          className="w-full text-xs p-2 bg-gray-50 hover:bg-gray-100/70 focus:bg-white border border-gray-200 focus:border-gray-500 rounded-lg font-medium outline-hidden"
                         />
                       </div>
                       <div className="col-span-2">
@@ -738,7 +732,7 @@ export default function App() {
                           type="text"
                           value={selectedEmployee.nss}
                           onChange={(e) => updateCellValue(selectedEmployee.id, 'nss', e.target.value)}
-                          className="w-full text-xs p-2 bg-gray-50 hover:bg-gray-100/70 focus:bg-white border border-gray-200 focus:border-indigo-500 rounded-lg font-medium outline-hidden"
+                          className="w-full text-xs p-2 bg-gray-50 hover:bg-gray-100/70 focus:bg-white border border-gray-200 focus:border-gray-500 rounded-lg font-medium outline-hidden"
                         />
                       </div>
                     </div>
@@ -767,9 +761,9 @@ export default function App() {
               <div className="flex items-center gap-2">
                 <button
                   onClick={addNewEmployee}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 active:bg-indigo-200 border border-indigo-100 rounded-lg cursor-pointer transition-colors"
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-gray-700 bg-gray-100 hover:bg-gray-200 active:bg-gray-300 border border-gray-300 rounded-lg cursor-pointer transition-colors"
                 >
-                  <UserPlus className="w-3.5 h-3.5" />
+                  <UserPlus className="w-3.5 h-3.5 text-gray-700" />
                   Agregar Manual
                 </button>
                 {employees.length > 0 ? (
@@ -817,7 +811,7 @@ export default function App() {
                     {employees.map((emp) => (
                       <tr 
                         key={emp.id}
-                        className={`hover:bg-slate-50 transition-colors ${selectedEmployeeId === emp.id ? 'bg-indigo-50/20' : ''}`}
+                        className={`hover:bg-slate-50 transition-colors ${selectedEmployeeId === emp.id ? 'bg-gray-100' : ''}`}
                       >
                         {/* Nombre */}
                         <td className="px-4 py-2 font-medium text-gray-900">
@@ -826,7 +820,7 @@ export default function App() {
                             value={emp.nombre}
                             onChange={(e) => updateCellValue(emp.id, 'nombre', e.target.value)}
                             onFocus={() => setSelectedEmployeeId(emp.id)}
-                            className="bg-transparent border-none hover:bg-gray-100 focus:bg-white focus:ring-1 focus:ring-indigo-200 outline-hidden w-full p-1 rounded font-bold"
+                            className="bg-transparent border-none hover:bg-gray-100 focus:bg-white focus:ring-1 focus:ring-gray-300 outline-hidden w-full p-1 rounded font-bold"
                           />
                         </td>
                         {/* Empresa */}
@@ -836,7 +830,7 @@ export default function App() {
                             value={emp.empresa}
                             onChange={(e) => updateCellValue(emp.id, 'empresa', e.target.value)}
                             onFocus={() => setSelectedEmployeeId(emp.id)}
-                            className="bg-transparent border-none hover:bg-gray-100 focus:bg-white focus:ring-1 focus:ring-indigo-200 outline-hidden w-full p-1 rounded"
+                            className="bg-transparent border-none hover:bg-gray-100 focus:bg-white focus:ring-1 focus:ring-gray-300 outline-hidden w-full p-1 rounded"
                           />
                         </td>
                         {/* Puesto */}
@@ -846,7 +840,7 @@ export default function App() {
                             value={emp.puesto}
                             onChange={(e) => updateCellValue(emp.id, 'puesto', e.target.value)}
                             onFocus={() => setSelectedEmployeeId(emp.id)}
-                            className="bg-transparent border-none hover:bg-gray-100 focus:bg-white focus:ring-1 focus:ring-indigo-200 outline-hidden w-full p-1 rounded"
+                            className="bg-transparent border-none hover:bg-gray-100 focus:bg-white focus:ring-1 focus:ring-gray-300 outline-hidden w-full p-1 rounded"
                           />
                         </td>
                         {/* Sangre */}
@@ -856,7 +850,7 @@ export default function App() {
                             value={emp.tipoSangre}
                             onChange={(e) => updateCellValue(emp.id, 'tipoSangre', e.target.value)}
                             onFocus={() => setSelectedEmployeeId(emp.id)}
-                            className="bg-transparent border-none hover:bg-gray-100 text-center focus:bg-white focus:ring-1 focus:ring-indigo-200 outline-hidden w-16 p-1 rounded"
+                            className="bg-transparent border-none hover:bg-gray-100 text-center focus:bg-white focus:ring-1 focus:ring-gray-300 outline-hidden w-16 p-1 rounded"
                           />
                         </td>
                         {/* NSS */}
@@ -866,7 +860,7 @@ export default function App() {
                             value={emp.nss}
                             onChange={(e) => updateCellValue(emp.id, 'nss', e.target.value)}
                             onFocus={() => setSelectedEmployeeId(emp.id)}
-                            className="bg-transparent border-none hover:bg-gray-100 focus:bg-white focus:ring-1 focus:ring-indigo-200 font-mono outline-hidden w-full p-1 rounded"
+                            className="bg-transparent border-none hover:bg-gray-100 focus:bg-white focus:ring-1 focus:ring-gray-300 font-mono outline-hidden w-full p-1 rounded"
                           />
                         </td>
                         {/* Acciones */}
@@ -875,8 +869,8 @@ export default function App() {
                             onClick={() => setSelectedEmployeeId(emp.id)}
                             className={`p-1 rounded cursor-pointer ${
                               selectedEmployeeId === emp.id 
-                                ? 'bg-indigo-100 text-indigo-700' 
-                                : 'text-gray-400 hover:text-indigo-600 hover:bg-indigo-50'
+                                ? 'bg-gray-200 text-gray-800' 
+                                : 'text-gray-400 hover:text-gray-700 hover:bg-gray-100'
                             }`}
                             title="Ver en previsualización de edición"
                           >
@@ -936,7 +930,7 @@ export default function App() {
       <footer className="bg-slate-900 text-slate-400 text-xs py-10 px-6 mt-16 select-none print:hidden">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-5 leading-relaxed">
           <div className="flex items-center gap-2 font-medium">
-            <CreditCard className="w-4 h-4 text-indigo-400" />
+            <CreditCard className="w-4 h-4 text-gray-500" />
             <span className="text-slate-200">Generador de Credenciales</span>
             <span className="text-slate-600">|</span>
             <span>Local-First &amp; Libre de Servidores</span>
