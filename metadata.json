@@ -1,0 +1,6 @@
+{
+  "name": "Generador de Credenciales",
+  "description": "Herramienta para generar planillas de credenciales de identificación imprimibles en PDF a partir de archivos Excel.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
