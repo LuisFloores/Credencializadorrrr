@@ -24,6 +24,152 @@ import PrintSheet from './components/PrintSheet';
 let jsPDFClass: any = null;
 let html2canvasClass: any = null;
 
+// Helper to clean up oklch, oklab, and rgb(from ...) colors for html2canvas compatibility
+const cleanRelativeColors = (cssText: string): string => {
+  if (!cssText) return cssText;
+  
+  let output = '';
+  let i = 0;
+  while (i < cssText.length) {
+    if (cssText.startsWith('rgb(from', i) || cssText.startsWith('rgba(from', i)) {
+      // Find balanced parenthesis of rgb/rgba function
+      let open = 1;
+      let j = cssText.indexOf('(', i) + 1;
+      while (j < cssText.length && open > 0) {
+        if (cssText[j] === '(') open++;
+        else if (cssText[j] === ')') open--;
+        j++;
+      }
+      const fullBlock = cssText.substring(i, j);
+      const matchAlpha = fullBlock.match(/\/\s*([0-9.%]+)\s*\)$/);
+      let alpha = '1';
+      if (matchAlpha) {
+        const aVal = matchAlpha[1];
+        if (aVal.endsWith('%')) {
+          alpha = (parseFloat(aVal) / 100).toString();
+        } else {
+          alpha = aVal;
+        }
+      }
+      
+      if (fullBlock.includes('indigo')) {
+        output += `rgba(79, 70, 229, ${alpha})`;
+      } else if (fullBlock.includes('rose') || fullBlock.includes('red')) {
+        output += `rgba(224, 30, 90, ${alpha})`;
+      } else if (fullBlock.includes('slate') || fullBlock.includes('gray')) {
+        output += `rgba(71, 85, 105, ${alpha})`;
+      } else {
+        output += `rgba(71, 85, 105, ${alpha})`;
+      }
+      i = j;
+    } else if (cssText.startsWith('oklch(', i)) {
+      // Find balanced parenthesis
+      let open = 1;
+      let j = i + 6;
+      while (j < cssText.length && open > 0) {
+        if (cssText[j] === '(') open++;
+        else if (cssText[j] === ')') open--;
+        j++;
+      }
+      const fullBlock = cssText.substring(i, j);
+      
+      const innerText = fullBlock.substring(6, fullBlock.length - 1).trim();
+      const parts = innerText.split(/[\s,/]+/).filter(Boolean);
+      
+      if (parts.length >= 3) {
+        const lStr = parts[0];
+        const hStr = parts[2];
+        const aStr = parts[3];
+        
+        const LVal = lStr.endsWith('%') ? parseFloat(lStr) / 100 : parseFloat(lStr);
+        let alpha = '1';
+        if (aStr) {
+          alpha = aStr.endsWith('%') ? (parseFloat(aStr) / 100).toString() : aStr;
+        }
+        
+        if (LVal > 0.93) {
+          output += `rgba(248, 250, 252, ${alpha})`;
+        } else if (LVal > 0.85) {
+          output += `rgba(241, 245, 249, ${alpha})`;
+        } else if (LVal < 0.20) {
+          output += `rgba(15, 23, 42, ${alpha})`;
+        } else {
+          const HVal = parseFloat(hStr);
+          if (!isNaN(HVal)) {
+            if (HVal >= 240 && HVal <= 290) {
+              output += `rgba(79, 70, 229, ${alpha})`;
+            } else if (HVal >= 0 && HVal <= 40) {
+              output += `rgba(224, 30, 90, ${alpha})`;
+            } else {
+              output += `rgba(71, 85, 105, ${alpha})`;
+            }
+          } else {
+            output += `rgba(71, 85, 105, ${alpha})`;
+          }
+        }
+      } else {
+        output += 'rgba(71, 85, 105, 1)';
+      }
+      i = j;
+    } else if (cssText.startsWith('oklab(', i)) {
+      // Find balanced parenthesis
+      let open = 1;
+      let j = i + 6;
+      while (j < cssText.length && open > 0) {
+        if (cssText[j] === '(') open++;
+        else if (cssText[j] === ')') open--;
+        j++;
+      }
+      const fullBlock = cssText.substring(i, j);
+      
+      const innerText = fullBlock.substring(6, fullBlock.length - 1).trim();
+      const parts = innerText.split(/[\s,/]+/).filter(Boolean);
+      
+      if (parts.length >= 3) {
+        const lStr = parts[0];
+        const aStrVal = parts[1];
+        const bStrVal = parts[2];
+        const aStr = parts[3];
+        
+        const LVal = lStr.endsWith('%') ? parseFloat(lStr) / 100 : parseFloat(lStr);
+        let alpha = '1';
+        if (aStr) {
+          alpha = aStr.endsWith('%') ? (parseFloat(aStr) / 100).toString() : aStr;
+        }
+        
+        if (LVal > 0.93) {
+          output += `rgba(248, 250, 252, ${alpha})`;
+        } else if (LVal > 0.85) {
+          output += `rgba(241, 245, 249, ${alpha})`;
+        } else if (LVal < 0.20) {
+          output += `rgba(15, 23, 42, ${alpha})`;
+        } else {
+          const aVal = parseFloat(aStrVal);
+          const bVal = parseFloat(bStrVal);
+          if (!isNaN(aVal) && !isNaN(bVal)) {
+            if (aVal > 0.05) {
+              output += `rgba(224, 30, 90, ${alpha})`;
+            } else if (bVal < -0.05) {
+              output += `rgba(79, 70, 229, ${alpha})`;
+            } else {
+              output += `rgba(71, 85, 105, ${alpha})`;
+            }
+          } else {
+            output += `rgba(71, 85, 105, ${alpha})`;
+          }
+        }
+      } else {
+        output += 'rgba(71, 85, 105, 1)';
+      }
+      i = j;
+    } else {
+      output += cssText[i];
+      i++;
+    }
+  }
+  return output;
+};
+
 const DEFAULT_CONFIG: BadgeConfig = {
   nombreEmpresaDefecto: 'Sinergia S.A.',
   colorPrincipal: '#1e3a8a', // Azul Corporativo
@@ -79,6 +225,73 @@ export default function App() {
       return () => clearTimeout(timer);
     }
   }, [notification]);
+
+  // Limpiar estilos oklch, oklab y relativos en la carga y dinámicamente
+  useEffect(() => {
+    const cleanedLinks = new Set<string>();
+
+    const cleanStylesheets = async () => {
+      try {
+        // 1. Limpiar todas las etiquetas <style> internas actuales
+        const styles = Array.from(document.getElementsByTagName('style'));
+        styles.forEach((style) => {
+          if (style.textContent && (style.textContent.includes('oklch') || style.textContent.includes('oklab') || style.textContent.includes('from '))) {
+            style.textContent = cleanRelativeColors(style.textContent);
+          }
+        });
+
+        // 2. Limpiar hojas de estilo externas <link>
+        const links = Array.from(document.querySelectorAll('link[rel="stylesheet"]')) as HTMLLinkElement[];
+        for (const link of links) {
+          const href = link.href;
+          if (href && !cleanedLinks.has(href)) {
+            cleanedLinks.add(href);
+            try {
+              const res = await fetch(href);
+              if (res.ok) {
+                const cssText = await res.text();
+                if (cssText.includes('oklch') || cssText.includes('oklab') || cssText.includes('from ')) {
+                  const cleanedText = cleanRelativeColors(cssText);
+                  const styleEl = document.createElement('style');
+                  styleEl.setAttribute('data-href', href);
+                  styleEl.textContent = cleanedText;
+                  document.head.appendChild(styleEl);
+                  
+                  // Deshabilitar y eliminar el link original
+                  link.disabled = true;
+                  link.parentNode?.removeChild(link);
+                }
+              }
+            } catch (err) {
+              console.warn('No se pudo procesar la hoja de estilo externa para oklch:', href, err);
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('Error al limpiar estilos globales:', e);
+      }
+    };
+
+    cleanStylesheets();
+
+    // Observar inserciones dinámicas de etiquetas style (por ejemplo, recargas del dev server)
+    const observer = new MutationObserver((mutations) => {
+      let shouldClean = false;
+      mutations.forEach((m) => {
+        m.addedNodes.forEach((node) => {
+          if (node.nodeName === 'STYLE') {
+            shouldClean = true;
+          }
+        });
+      });
+      if (shouldClean) {
+        cleanStylesheets();
+      }
+    });
+
+    observer.observe(document.head, { childList: true });
+    return () => observer.disconnect();
+  }, []);
 
   const triggerNotification = (type: 'success' | 'info' | 'error', message: string) => {
     setNotification({ type, message });
@@ -159,73 +372,6 @@ export default function App() {
       return;
     }
     window.print();
-  };
-
-  // Helper to clean up oklch, oklab, and rgb(from ...) colors for html2canvas compatibility
-  const cleanRelativeColors = (cssText: string): string => {
-    if (!cssText) return cssText;
-    
-    // Replace rgb(from ...) or rgba(from ...) relative syntax first
-    let cleaned = cssText;
-    
-    cleaned = cleaned.replace(/rgba?\(from\s+[^)]+indigo[^)]+\/\s*([0-9.]+)\s*\)/g, 'rgba(79, 70, 229, $1)');
-    cleaned = cleaned.replace(/rgba?\(from\s+[^)]+(rose|red)[^)]+\/\s*([0-9.]+)\s*\)/g, 'rgba(224, 30, 90, $1)');
-    cleaned = cleaned.replace(/rgba?\(from\s+[^)]+slate[^)]+\/\s*([0-9.]+)\s*\)/g, 'rgba(71, 85, 105, $1)');
-    cleaned = cleaned.replace(/rgba?\(from\s+[^)]+\/\s*([0-9.]+)\s*\)/g, 'rgba(71, 85, 105, $1)');
-    cleaned = cleaned.replace(/rgba?\(from\s+[^)]+\)/g, 'rgb(71, 85, 105)');
-
-    // Now convert oklch(...) to approximate solid hex or rgb
-    cleaned = cleaned.replace(/oklch\(\s*([0-9.]+%?)\s+([0-9.]+)\s+([0-9.]+)(?:\s*\/\s*([0-9.%]+))?\s*\)/g, (match, lStr, cStr, hStr, aStr) => {
-      const LVal = lStr.endsWith('%') ? parseFloat(lStr) / 100 : parseFloat(lStr);
-      const alpha = aStr ? aStr : '1';
-      
-      if (LVal > 0.93) {
-        return `rgba(248, 250, 252, ${alpha})`;
-      } else if (LVal > 0.85) {
-        return `rgba(241, 245, 249, ${alpha})`;
-      } else if (LVal < 0.20) {
-        return `rgba(15, 23, 42, ${alpha})`;
-      } else {
-        const HVal = parseFloat(hStr);
-        if (HVal >= 240 && HVal <= 290) {
-          return `rgba(79, 70, 229, ${alpha})`;
-        } else if (HVal >= 0 && HVal <= 40) {
-          return `rgba(224, 30, 90, ${alpha})`;
-        } else {
-          return `rgba(71, 85, 105, ${alpha})`;
-        }
-      }
-    });
-
-    cleaned = cleaned.replace(/oklch\([^)]+\)/g, '#475569');
-
-    // Convert oklab(...) to approximate solid hex or rgb
-    cleaned = cleaned.replace(/oklab\(\s*([0-9.]+%?)\s+([0-9.-]+)\s+([0-9.-]+)(?:\s*\/\s*([0-9.%]+))?\s*\)/g, (match, lStr, aStrVal, bStrVal, alphaStr) => {
-      const LVal = lStr.endsWith('%') ? parseFloat(lStr) / 100 : parseFloat(lStr);
-      const alpha = alphaStr ? alphaStr : '1';
-      
-      if (LVal > 0.93) {
-        return `rgba(248, 250, 252, ${alpha})`;
-      } else if (LVal > 0.85) {
-        return `rgba(241, 245, 249, ${alpha})`;
-      } else if (LVal < 0.20) {
-        return `rgba(15, 23, 42, ${alpha})`;
-      } else {
-        const aVal = parseFloat(aStrVal);
-        const bVal = parseFloat(bStrVal);
-        if (aVal > 0.05) {
-          return `rgba(224, 30, 90, ${alpha})`;
-        } else if (bVal < -0.05) {
-          return `rgba(79, 70, 229, ${alpha})`;
-        } else {
-          return `rgba(71, 85, 105, ${alpha})`;
-        }
-      }
-    });
-
-    cleaned = cleaned.replace(/oklab\([^)]+\)/g, '#475569');
-
-    return cleaned;
   };
 
   // Generar PDF usando jsPDF + html2canvas con alta resolución
@@ -367,6 +513,13 @@ export default function App() {
       {/* Estilo Dinámico Inyectado para imprimir con precisión milimétrica */}
       <style>{`
         @media print {
+          /* Forzar la impresión de colores, degradados, fondos e imágenes */
+          *, *::before, *::after {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+            color-adjust: exact !important;
+          }
+          
           /* Ocultar toda la UI interactiva */
           body * {
             visibility: hidden;
